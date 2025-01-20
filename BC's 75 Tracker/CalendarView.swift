@@ -18,14 +18,14 @@ struct CalendarView: View {
     var userName: String
     
     func setDateRange() {
-        let startDate = firebase.users[userName]!.startDate
-        let endDate = firebase.users[userName]!.endDate
+        let startDate = firebase.users[userName]!.Challenge75.Challenge1.startDate
+        let endDate = firebase.users[userName]!.Challenge75.Challenge1.endDate
         dateRange = startDate...endDate
         sortedDates()
     }
     
     private func saveTask(date: String, _ task: Task) {
-        firebase.users[userName]?.tasks[date] = task
+        firebase.users[userName]?.Challenge75.Challenge1.tasks[date] = task
         firebase.updateTask(userName: userName, date: date, task: task)
         //tasks[date] = task
     }
@@ -45,7 +45,7 @@ struct CalendarView: View {
         }
         for date in dates {
             let dateString = formattedDate(date)
-            if !(firebase.users[userName]!.tasks.keys.contains(dateString)) {
+            if !(firebase.users[userName]!.Challenge75.Challenge1.tasks.keys.contains(dateString)) {
                 saveTask(date: dateString, Task())
             }
         }
@@ -87,7 +87,7 @@ struct CalendarView: View {
                                     } label: {
                                         VStack {
                                             RingDateView(
-                                                progress: firebase.users[userName]?.tasks[formattedDate(date)]?.completionPercentage ?? 0.0, date: date)
+                                                progress: firebase.users[userName]?.Challenge75.Challenge1.tasks[formattedDate(date)]?.completionPercentage ?? 0.0, date: date)
                                             .padding(8)
                                             .frame(maxWidth: .infinity) // Ensures square-like aspect ratio within grid spacing
                                             .background(

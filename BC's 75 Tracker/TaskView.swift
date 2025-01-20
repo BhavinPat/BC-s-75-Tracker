@@ -74,36 +74,36 @@ struct TaskView: View {
             }
         }
         .onChange(of: water) {
-            firebase.users[userName]?.tasks[date]?.water = water
+            firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.water = water
             saveTask()
             //onUpdate(firebase.currentTask)
         }
         .onChange(of: workout) {
-            firebase.users[userName]?.tasks[date]?.workout = workout
+            firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.workout = workout
             saveTask()
             //onUpdate(firebase.currentTask)
         }
         .onChange(of: reading) {
-            firebase.users[userName]?.tasks[date]?.reading = reading
+            firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.reading = reading
             saveTask()
             //onUpdate(firebase.currentTask)
         }
         .onChange(of: progressPic) {
-            firebase.users[userName]?.tasks[date]?.progressPic = progressPic
+            firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.progressPic = progressPic
             saveTask()
            // onUpdate(firebase.currentTask)
         }
         .onChange(of: food) {
-            firebase.users[userName]?.tasks[date]?.food = food
+            firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.food = food
             saveTask()
             //onUpdate(firebase.currentTask)
         }
         .onAppear {
-            water = firebase.users[userName]?.tasks[date]?.water ?? false
-            workout = firebase.users[userName]?.tasks[date]?.workout ?? false
-            reading = firebase.users[userName]?.tasks[date]?.reading ?? false
-            progressPic = firebase.users[userName]?.tasks[date]?.progressPic ?? false
-            food = firebase.users[userName]?.tasks[date]?.food ?? false
+            water = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.water ?? false
+            workout = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.workout ?? false
+            reading = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.reading ?? false
+            progressPic = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.progressPic ?? false
+            food = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.food ?? false
         }
         .navigationTitle(formattedDateTask(date))
     }
@@ -117,7 +117,7 @@ struct TaskView: View {
     
     private func saveTask() {
         //firebase.users[userName]?.tasks[date] = task
-        firebase.updateTask(userName: userName, date: date, task: (firebase.users[userName]?.tasks[date])!)
+        firebase.updateTask(userName: userName, date: date, task: (firebase.users[userName]?.Challenge75.Challenge1.tasks[date])!)
         //tasks[date] = task
     }
     

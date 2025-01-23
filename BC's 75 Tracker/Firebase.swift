@@ -12,26 +12,24 @@ import FirebaseDatabase
 class FirebaseService {
     private let db = Database.database().reference()
     var users: [String: User] = [:]
-    
+    /*
     init() {
         _Concurrency.Task {
             await loadUsers()
         }
     }
-    
+    */
     private func fetchUsers() async throws -> [String: User] {
+        /*
+        let listener = db.child("user").observe(.value, with: {
+            snapshot in
+        })
+         */
         do {
             let snapshot = try await db.child("users").getData()
-            print(snapshot.value)
-            print("1")
             guard let data = snapshot.value as? [String: Any] else { throw  BCError.failedToDecode1}
-            print(data)
-            print("2")
             let fetchedUsers: [String: User] = try data.compactMapValues { userDict in
-                print(userDict)
-                print("3")
                 guard let jsonData = try? JSONSerialization.data(withJSONObject: userDict) else { throw BCError.failedToDecode1 }
-                print("4")
                 // Create a JSONDecoder with a custom date decoding strategy
                 let decoder = JSONDecoder()
                 let dateFormatter = DateFormatter()
@@ -47,7 +45,7 @@ class FirebaseService {
         
     }
     
-    private func loadUsers() async {
+    func loadUsers() async {
         do {
             let fetchedUsers = try await fetchUsers()
             users = fetchedUsers

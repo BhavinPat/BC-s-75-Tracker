@@ -49,23 +49,32 @@ struct Challenge1: Codable {
 struct Task: Codable, Equatable {
 
     
-    var water: Bool
+    var water: Double
     var workout: Bool
     var reading: Bool
     var progressPic: Bool
     var food: Bool
+    var workoutDescription: String
+    var foodDescription: String
     
     var completionPercentage: Double {
         let totalTasks = 5.0
-        let completedTasks = [water, workout, reading, progressPic, food].filter { $0 }.count
-        return (Double(completedTasks) / totalTasks)
+        var completedTasks: Double = Double([workout, reading, progressPic, food].filter { $0 }.count)
+        var water = self.water/100.0
+        if water > 100 {
+            water = 100
+        }
+        completedTasks += water
+        return (completedTasks / totalTasks)
     }
     
     init() {
-        water = false
+        water = 0
         workout = false
         reading = false
         progressPic = false
         food = false
+        workoutDescription = ""
+        foodDescription = ""
     }
 }

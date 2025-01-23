@@ -9,11 +9,13 @@ import SwiftUI
 struct TaskView: View {
     @Environment(FirebaseService.self) var firebase
     
-    @State private var water: Bool = false
+    @State private var water: Double = 0
     @State private var workout: Bool = false
     @State private var reading: Bool = false
     @State private var progressPic: Bool = false
     @State private var food: Bool = false
+    @State private var foodDescription: String = ""
+    @State private var workoutDescription: String = ""
     
     var userName: String
     var date: String
@@ -22,24 +24,36 @@ struct TaskView: View {
     
     var body: some View {
         List {
-            Button {
-                water.toggle()
-            } label: {
-                if !water {
-                    Label("3L of Water", systemImage: "square")
-                } else {
-                    Label("3L of Water", systemImage: "checkmark")
-                        .symbolVariant(.square)
+            Group {
+                Text("Water Intake: \(Int(water))oz")
+                Slider(
+                    value: $water,
+                    in: 0...100,
+                    step: 5
+                ) {
+                    Text("Water Intake")
+                } minimumValueLabel: {
+                    Text("0oz")
+                } maximumValueLabel: {
+                    Text("100oz")
+                } onEditingChanged: { editing in
+                    //isEditing = editing
                 }
             }
-            Button {
-                workout.toggle()
-            } label: {
-                if !workout {
-                    Label("45 Min Workout", systemImage: "square")
-                } else {
-                    Label("45 Min Workout", systemImage: "checkmark")
-                        .symbolVariant(.square)
+            Group {
+                Button {
+                    workout.toggle()
+                } label: {
+                    if !workout {
+                        Label("45 Min Workout", systemImage: "square")
+                    } else {
+                        Label("45 Min Workout", systemImage: "checkmark")
+                            .symbolVariant(.square)
+                    }
+                }
+                if workout {
+                    Text("Describe your workout")
+                    TextEditor(text: $workoutDescription)
                 }
             }
             Button {
@@ -62,14 +76,20 @@ struct TaskView: View {
                         .symbolVariant(.square)
                 }
             }
-            Button {
-                food.toggle()
-            } label: {
-                if !food {
-                    Label("Food Goal", systemImage: "square")
-                } else {
-                    Label("Food Goal", systemImage: "checkmark")
-                        .symbolVariant(.square)
+            Group {
+                Button {
+                    food.toggle()
+                } label: {
+                    if !food {
+                        Label("Food Goal", systemImage: "square")
+                    } else {
+                        Label("Food Goal", systemImage: "checkmark")
+                            .symbolVariant(.square)
+                    }
+                }
+                if food {
+                    Text("Describe what you ate today")
+                    TextEditor(text: $foodDescription)
                 }
             }
         }
@@ -98,8 +118,18 @@ struct TaskView: View {
             saveTask()
             //onUpdate(firebase.currentTask)
         }
+        .onChange(of: workoutDescription) {
+            firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.workoutDescription = workoutDescription
+            saveTask()
+        }
+        .onChange(of: foodDescription) {
+            firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.foodDescription = foodDescription
+            saveTask()
+        }
         .onAppear {
-            water = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.water ?? false
+            water = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.water ?? 0.0
+            foodDescription = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.foodDescription ?? ""
+            workoutDescription = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.workoutDescription ?? ""
             workout = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.workout ?? false
             reading = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.reading ?? false
             progressPic = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.progressPic ?? false

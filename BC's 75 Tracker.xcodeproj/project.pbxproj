@@ -18,9 +18,30 @@
 		8D522C282D381F3100465202 /* BC's 75 Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "BC's 75 Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8DFDCA3D2D41EF1600F61E12 /* Exceptions for "BC's 75 Tracker" folder in "BC's 75 Tracker" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"New Group/CustomTextFieldView.swift",
+				"New Group/DeleteAccountView.swift",
+				"New Group/Extension.swift",
+				"New Group/ExtensionsSwiftUI.swift",
+				"New Group/LoginView.swift",
+				"New Group/ResetPasswordView.swift",
+				"New Group/ResetPasswordWhenLoggedInView.swift",
+				"New Group/SignupView.swift",
+				"New Group/UnderlineTextFieldView.swift",
+			);
+			target = 8D522C272D381F3100465202 /* BC's 75 Tracker */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8D522C2A2D381F3100465202 /* BC's 75 Tracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8DFDCA3D2D41EF1600F61E12 /* Exceptions for "BC's 75 Tracker" folder in "BC's 75 Tracker" target */,
+			);
 			path = "BC's 75 Tracker";
 			sourceTree = "<group>";
 		};

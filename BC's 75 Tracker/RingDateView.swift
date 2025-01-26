@@ -36,7 +36,7 @@ struct RingDateView: View {
         Color(red: 1.0 - progress, green: progress, blue: 0.0)
     }
     
-    private let startAngle: Angle = .degrees(-210) // 30 degrees from bottom
+    private let startAngle: Angle = .degrees(90) // 30 degrees from bottom
     private let endAngle: Angle = .degrees(30)    // 30 degrees from bottom
     
     var body: some View {
@@ -45,22 +45,28 @@ struct RingDateView: View {
                 .stroke(Gradient(colors: [ringColor]).opacity(0.2), lineWidth: 10)
             // Completion ring
             Circle()
-                .trim(from: 0.0, to: progress*5/6)
+                .trim(from: 0, to: min(progress, 0.97))
                 .stroke(
                     AngularGradient(
-                        gradient: Gradient(colors: [ringColor]),
+                        gradient: Gradient(colors: [.red, .yellow, .green]),
                         center: .center,
-                        startAngle: startAngle,
-                        endAngle: endAngle
+                        startAngle: .degrees(-1),
+                        endAngle: .degrees(350)
                     ),
-                    style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                    style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round)
                 )
-                .rotationEffect(.degrees(120)) // Offset start point to desired angle
-            
+                .rotationEffect(.degrees(95)) // Offset start point to desired angle
             // Number inside the circle
             Text("\(numberFromDate())")
                 .font(.largeTitle)
                 .fontWeight(.bold)
+            if progress > 0.99 {
+                Image(systemName: "checkmark")
+                    .resizable()
+                    .foregroundStyle(.green.opacity(0.2))
+                    .scaledToFit()
+                    .aspectRatio(1, contentMode: .fit)
+            }
         }
         .padding(5)
     }

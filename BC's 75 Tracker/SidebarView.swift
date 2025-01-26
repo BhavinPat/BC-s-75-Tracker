@@ -9,58 +9,41 @@ import SwiftUI
 import Network
 struct SidebarView: View {
     @State private var selectedUser: String? = nil
-    @State private var firebase = FirebaseService()
-    @State private var appManager = AppManager()
+    @Environment(FirebaseService.self) var firebase
+    @Environment(AppManager.self) var appManager
     let users = ["Bhavin", "Chloe"]
     
     var body: some View {
-        NavigationStack(path: $appManager.path) {
-            VStack {
-                if !appManager.isConnected {
-                    Text("You are not connected to the internet. Return back to the app when you reconnect.")
-                        .frame(height: 50.0)
-                        .frame(maxWidth: .greatestFiniteMagnitude)
-                        .clipShape(RoundedRectangle(cornerRadius: 10.0))
-                        .background(.red)
-                } else if appManager.isConnected && !firebase.users.isEmpty {
-                    List(users, id: \.self, selection: $selectedUser) { user in
-                        Button {
-                            appManager.path.append(.calender(userName: user))
-                        } label: {
-                            Text(user)
-                        }
-                    }
-                } else {
-                    Text("Loading Content...")
-                }
-                Spacer()
-            }
-            .onChange(of: appManager.isConnected, initial: true) {
-                if appManager.isConnected {
-                    if firebase.users.isEmpty {
-                        _Concurrency.Task {
-                            await firebase.loadUsers()
-                        }
+        VStack {
+            if !appManager.isConnected {
+                Text("You are not connected to the internet. Return back to the app when you reconnect.")
+                    .frame(height: 50.0)
+                    .frame(maxWidth: .greatestFiniteMagnitude)
+                    .clipShape(RoundedRectangle(cornerRadius: 10.0))
+                    .background(.red)
+            } else if appManager.isConnected && !firebase.users.isEmpty {
+                List(users, id: \.self, selection: $selectedUser) { user in
+                    Button {
+                        appManager.path.append(.calender(userName: user))
+                    } label: {
+                        Text(user)
                     }
                 }
+            } else {
+                Text("Loading Content...")
             }
-            .padding(.top, 30)
-            .listStyle(.automatic)
-            .navigationTitle("75 Soft")
-            .navigationDestination(for: BCNavigation.self) {
-                value in
-                switch value {
-                    case .calender(let userName):
-                        CalendarView(userName: userName)
-                            .environment(firebase)
-                            .environment(appManager)
-                    case .taskView(let userName, let date):
-                        TaskView(userName: userName, date: date)
-                            .environment(firebase)
-                            .environment(appManager)
+            Spacer()
+        }
+        .onChange(of: appManager.isConnected, initial: true) {
+            if appManager.isConnected {
+                if firebase.users.isEmpty {
+                    firebase.loadUsers()
                 }
             }
         }
+        .padding(.top, 30)
+        .listStyle(.grouped)
+        .navigationTitle("75 Soft")
     }
 }
 @Observable
@@ -91,5 +74,8 @@ class AppManager {
 enum BCNavigation: Hashable {
     case calender(userName: String)
     case taskView(userName: String, date: String)
+    case createAccount
+    case signin
+    case chooseUser
 }
 

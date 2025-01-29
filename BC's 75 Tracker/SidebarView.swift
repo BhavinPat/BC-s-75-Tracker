@@ -14,36 +14,98 @@ struct SidebarView: View {
     let users = ["Bhavin", "Chloe"]
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             if !appManager.isConnected {
-                Text("You are not connected to the internet. Return back to the app when you reconnect.")
-                    .frame(height: 50.0)
-                    .frame(maxWidth: .greatestFiniteMagnitude)
-                    .clipShape(RoundedRectangle(cornerRadius: 10.0))
-                    .background(.red)
-            } else if appManager.isConnected && !firebase.users.isEmpty {
+                // Offline Banner
+                VStack {
+                    HStack(spacing: 12) {
+                        Image(systemName: "wifi.slash")
+                            .font(.title3)
+                        
+                        Text("No Internet Connection")
+                            .font(.headline)
+                        
+                        Spacer()
+                    }
+                    
+                    Text("Please check your connection and try again")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.red.opacity(0.1))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(.red.opacity(0.2))
+                }
+                .padding()
+            } else if !firebase.users.isEmpty {
+                // User List
                 List(users, id: \.self, selection: $selectedUser) { user in
                     Button {
                         appManager.path.append(.calender(userName: user))
                     } label: {
-                        Text(user)
+                        HStack {
+                            Label {
+                                Text(user)
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                            } icon: {
+                                Image(systemName: "person.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
                     }
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    )
                 }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .background(Color(uiColor: .systemGroupedBackground))
             } else {
-                Text("Loading Content...")
+                // Loading State
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .controlSize(.large)
+                    
+                    Text("Loading Users...")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(uiColor: .systemGroupedBackground))
             }
-            Spacer()
         }
         .onChange(of: appManager.isConnected, initial: true) {
-            if appManager.isConnected {
-                if firebase.users.isEmpty {
-                    firebase.loadUsers()
-                }
+            if appManager.isConnected && firebase.users.isEmpty {
+                firebase.loadUsers()
             }
         }
-        .padding(.top, 30)
-        .listStyle(.grouped)
         .navigationTitle("75 Soft")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    // Add refresh action if needed
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(!appManager.isConnected)
+            }
+        }
     }
 }
 @Observable

@@ -6,65 +6,129 @@
 //
 import SwiftUI
 import Photos
+import PhotosUI
 
 struct PhotoUploadView: View {
     @Binding var viewModel: PhotoUploadViewModel
     @State private var presentPhotoPicker = false
     var body: some View {
-        VStack {
-            // Button to open PhotoPicker
-            Button("Select Photo") {
-                viewModel.selectedItem = nil
-                viewModel.selectedImageData = nil
-                presentPhotoPicker = true
-            }
-            .photosPicker(isPresented: $presentPhotoPicker,
-                          selection: $viewModel.selectedItem,
-                          matching: .images)
-            
-            // Display selected image
-            if let selectedData = viewModel.selectedImageData,
-                let uiImage = UIImage(data: selectedData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 300)
-                
-                // Confirmation Buttons
-                HStack {
-                    Button("Confirm Upload") {
-                        viewModel.uploadImageToFirebase()
+        VStack(spacing: 24) {
+            // Main Photo Section
+            Group {
+                if let selectedData = viewModel.selectedImageData,
+                   let uiImage = UIImage(data: selectedData) {
+                    // Selected Image Preview
+                    VStack(spacing: 16) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(.quaternary)
+                            }
+                            .frame(maxHeight: 300)
+                            .padding(.horizontal)
+                        
+                        // Action Buttons
+                        HStack(spacing: 16) {
+                            Button(role: .destructive) {
+                                viewModel.selectedItem = nil
+                                viewModel.selectedImageData = nil
+                            } label: {
+                                Label("Cancel", systemImage: "xmark.circle.fill")
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Button {
+                                viewModel.uploadImageToFirebase()
+                            } label: {
+                                Label("Upload Photo", systemImage: "arrow.up.circle.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
                     }
-                    
-                    Button("Cancel Upload") {
-                        viewModel.selectedItem = nil
-                        viewModel.selectedImageData = nil
+                } else {
+                    // Photo Selection Button
+                    PhotosPicker(selection: $viewModel.selectedItem,
+                                 matching: .images) {
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo.badge.plus")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.tint)
+                            
+                            Text("Select Photo")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .background {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                        }
+                        .contentShape(Rectangle())
                     }
                 }
             }
             
-            // Upload Progress
-            if viewModel.uploadProgress > 0 {
-                ProgressView(value: viewModel.uploadProgress)
-                    .progressViewStyle(LinearProgressViewStyle())
+            // Upload Progress & Status
+            if viewModel.uploadProgress > 0 && !viewModel.uploadComplete {
+                VStack(spacing: 8) {
+                    ProgressView(value: viewModel.uploadProgress) {
+                        Text("Uploading...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .tint(.blue)
+                    
+                    Text("\(Int(viewModel.uploadProgress * 100))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .background {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                }
             }
             
-            // Upload Status
+            // Success Message
             if viewModel.uploadComplete {
-                Text("Upload Successful!")
-                    .foregroundColor(.green)
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Photo uploaded successfully!")
+                        .font(.subheadline)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                }
             }
             
-            // Error Handling
+            // Error Message
             if let error = viewModel.uploadError {
-                Text("Upload Failed: \(error.localizedDescription)")
-                    .foregroundColor(.red)
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text(error.localizedDescription)
+                        .font(.subheadline)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(.red.opacity(0.2))
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
         }
-        // PhotosPicker onChange handler
+        .padding()
         .onChange(of: viewModel.selectedItem) {
             _Concurrency.Task {
-                // Load selected image data
                 if let data = try? await viewModel.selectedItem?.loadTransferable(type: Data.self) {
                     await MainActor.run {
                         viewModel.selectedImageData = data

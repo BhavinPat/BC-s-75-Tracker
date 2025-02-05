@@ -74,6 +74,8 @@ struct AuthLandingView: View {
                     case .chooseUser:
                         SidebarView()
                             .navigationBarBackButtonHidden()
+                    case .poopTracker:
+                        PTrackerView()
                 }
             }
         }

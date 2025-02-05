@@ -42,69 +42,31 @@ class PhotoUploadViewModel {
     
     private func resizeImage(_ inputImage: UIImage) -> UIImage {
         let sourceSize = inputImage.size
-        let maxDimension: CGFloat = 1800
+        let aspectRatio = sourceSize.width / sourceSize.height
+        let targetMaxDimension: CGFloat = 2200
         
-        // Calculate scale factor to maintain aspect ratio
-        let scaleFactor = maxDimension / max(sourceSize.width, sourceSize.height)
+        var newWidth: CGFloat
+        var newHeight: CGFloat
         
-        // Only resize if the image is larger than our target
-        guard scaleFactor < 1 else { return inputImage }
+        if aspectRatio > 1 {
+            // Landscape image
+            newWidth = targetMaxDimension
+            newHeight = targetMaxDimension / aspectRatio
+        } else {
+            // Portrait or square image
+            newHeight = targetMaxDimension
+            newWidth = targetMaxDimension * aspectRatio
+        }
         
-        let newWidth = sourceSize.width * scaleFactor
-        let newHeight = sourceSize.height * scaleFactor
         let newSize = CGSize(width: newWidth, height: newHeight)
         
-        guard let cgImage = inputImage.cgImage else { return inputImage }
+        // Create and draw in a new graphics context
+        UIGraphicsBeginImageContextWithOptions(newSize, false, inputImage.scale)
+        inputImage.draw(in: CGRect(origin: .zero, size: newSize))
+        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
         
-        // Use the original image's colorspace and bitmap info
-        let originalColorSpace = cgImage.colorSpace ?? CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = cgImage.bitmapInfo
-        
-        // Configure vImage format with original image properties
-        var format = vImage_CGImageFormat(
-            bitsPerComponent: Int(cgImage.bitsPerComponent),
-            bitsPerPixel: Int(cgImage.bitsPerPixel),
-            colorSpace: originalColorSpace,
-            bitmapInfo: bitmapInfo
-        )
-        
-        guard var sourceBuffer = try? vImage_Buffer(cgImage: cgImage),
-              var destinationBuffer = try? vImage_Buffer(width: Int(newWidth),
-                                                         height: Int(newHeight),
-                                                         bitsPerPixel: format!.bitsPerPixel) else {
-            return inputImage
-        }
-        
-        // High-quality resampling
-        let error = vImageScale_ARGB8888(&sourceBuffer,
-                                         &destinationBuffer,
-                                         nil,
-                                         vImage_Flags(kvImageHighQualityResampling))
-        
-        // Check for scaling errors
-        guard error == kvImageNoError else {
-            sourceBuffer.free()
-            destinationBuffer.free()
-            return inputImage
-        }
-        
-        // Create resized image
-        guard let resizedCGImage = try? destinationBuffer.createCGImage(format: format!) else {
-            sourceBuffer.free()
-            destinationBuffer.free()
-            return inputImage
-        }
-        
-        // Clean up
-        sourceBuffer.free()
-        destinationBuffer.free()
-        
-        // Preserve original image orientation and scale
-        let resizedImage = UIImage(cgImage: resizedCGImage,
-                                   scale: inputImage.scale,
-                                   orientation: inputImage.imageOrientation)
-        
-        return resizedImage
+        return resizedImage ?? inputImage
     }
     
     private func compressImageData(_ image: UIImage) -> Data? {

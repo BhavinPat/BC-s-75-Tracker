@@ -45,32 +45,32 @@ struct SidebarView: View {
                 .padding()
             } else if !firebase.users.isEmpty {
                 // User List
-                List(users, id: \.self, selection: $selectedUser) { user in
-                    Button {
-                        appManager.path.append(.calender(userName: user))
-                    } label: {
-                        HStack {
-                            Label {
-                                Text(user)
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-                            } icon: {
-                                Image(systemName: "person.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
+                List(selection: $selectedUser) {
+                    // Shared Section
+                    Section("Shared") {
+                        Button {
+                            appManager.path.append(.poopTracker)
+                        } label: {
+                            ListRowView(
+                                title: "Poop Tracker",
+                                iconName: "figure.2.circle.fill"
+                            )
                         }
-                        .contentShape(Rectangle())
                     }
-                    .listRowBackground(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
+                    
+                    // User Sections
+                    ForEach(users, id: \.self) { user in
+                        Section(user) {
+                            Button {
+                                appManager.path.append(.calender(userName: user))
+                            } label: {
+                                ListRowView(
+                                    title: "75 Soft",
+                                    iconName: "figure.strengthtraining.traditional"
+                                )
+                            }
+                        }
+                    }
                 }
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
@@ -91,10 +91,10 @@ struct SidebarView: View {
         }
         .onChange(of: appManager.isConnected, initial: true) {
             if appManager.isConnected && firebase.users.isEmpty {
-                firebase.loadUsers()
+                firebase.load()
             }
         }
-        .navigationTitle("75 Soft")
+        .navigationTitle("BC's Tracker!")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -139,5 +139,35 @@ enum BCNavigation: Hashable {
     case createAccount
     case signin
     case chooseUser
+    case poopTracker
 }
 
+
+struct ListRowView: View {
+    let title: String
+    let iconName: String
+    
+    var body: some View {
+        HStack {
+            Label {
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+            } icon: {
+                Image(systemName: iconName)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+    }
+}

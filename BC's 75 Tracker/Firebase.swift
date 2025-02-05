@@ -13,13 +13,27 @@ import FirebaseAuth
 class FirebaseService {
     private let db = Database.database().reference()
     var users: [String: User] = [:]
+    var pTracker: [String: PMonth] = [:]
     /*
     init() {
         _Concurrency.Task {
             await loadUsers()
-        }
+     }
+     }
+     */
+    
+    private func fetchPoops() {
+        let listener = db.child("pTracker").observe(.value, with: { [self]
+            snapshot in
+            guard let data = snapshot.value as? [String: Any] else { return }
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: data) else { return }
+            let decoder = JSONDecoder()
+            let poops = try? decoder.decode([String: PMonth].self, from: jsonData)
+            if let poops {
+                pTracker = poops
+            }
+        })
     }
-    */
     private func fetchUsers() {
         
         let listener = db.child("users").observe(.value, with: { [self]
@@ -38,8 +52,19 @@ class FirebaseService {
         })
     }
     
-    func loadUsers() {
-        fetchUsers()
+    func load() {
+        _Concurrency.Task {
+            fetchUsers()
+        }
+        _Concurrency.Task {
+            fetchPoops()
+        }
+    }
+    
+    func updatePoops(key: String, value: PMonth) {
+        let data = try? JSONEncoder().encode(value)
+        guard let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) else { return }
+        db.child("pTracker/\(key)").setValue(json)
     }
 
     

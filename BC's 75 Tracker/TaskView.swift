@@ -7,6 +7,7 @@
 import SwiftUI
 import Photos
 import PhotosUI
+
 struct TaskView: View {
     @Environment(FirebaseService.self) var firebase
     
@@ -118,24 +119,33 @@ struct TaskView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Progress Picture", systemImage: "camera.fill")
                             .font(.headline)
-                        
+                        //if presentPhotoPicker {
                         if let image = progressPicImage {
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .strokeBorder(.quaternary)
+                            VStack(spacing: 16) {
+                                OptimizedImageView(image: image)
+                                HStack(spacing: 12) {
+                                    Button() {
+                                        presentPhotoPicker.toggle()
+                                    } label: {
+                                        Text("Update Picture")
+                                            .font(.subheadline.weight(.medium))
+                                    }
+                                    .buttonStyle(.bordered)
+                                    
+                                    Button(role: .destructive) {
+                                        _Concurrency.Task {
+                                            try await photoModel.deletePhoto()
+                                            progressPicImage = nil
+                                            progressPic = false
+                                        }
+                                    } label: {
+                                        Text("Delete Picture")
+                                            .font(.subheadline.weight(.medium))
+                                    }
+                                    .buttonStyle(.bordered)
                                 }
-                            
-                            Button {
-                                presentPhotoPicker.toggle()
-                            } label: {
-                                Text("Update Picture")
-                                    .font(.subheadline.weight(.medium))
+                                
                             }
-                            .buttonStyle(.bordered)
                         } else {
                             Button {
                                 presentPhotoPicker.toggle()
@@ -242,13 +252,18 @@ struct TaskView: View {
         .onAppear {
             
             photoModel.taskPath = "users/\(userName)/Challenge75/Challenge1/tasks/\(date)"
-            _Concurrency.Task {
+            _Concurrency.Task { @MainActor in
                 do {
                     progressPicImage = try await photoModel.getPhoto()
-                    progressPic = true
                 } catch {
-                    progressPic = false
+                    print("Failed to get main photo: \(error.localizedDescription)")
+                    do {
+                        progressPicImage = try await photoModel.getPhoto(filename: "progressPic.png")
+                    } catch {
+                        print("Failed to get fallback photo: \(error.localizedDescription)")
+                    }
                 }
+                progressPic = progressPicImage != nil
             }
             water = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.water ?? 0.0
             foodDescription = firebase.users[userName]?.Challenge75.Challenge1.tasks[date]?.foodDescription ?? ""

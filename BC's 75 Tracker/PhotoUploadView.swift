@@ -10,8 +10,11 @@ import PhotosUI
 
 struct PhotoUploadView: View {
     @Binding var viewModel: PhotoUploadViewModel
+    @Environment(\.dismiss) private var dismiss
     @State private var presentPhotoPicker = false
+    
     var body: some View {
+        //NavigationStack??????????????
         VStack(spacing: 24) {
             // Main Photo Section
             Group {
@@ -127,6 +130,22 @@ struct PhotoUploadView: View {
             }
         }
         .padding()
+        .navigationTitle("Upload Photo")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            
+            ToolbarItem(placement: .automatic) {
+                Button("Done") {
+                    dismiss()
+                }
+                .disabled(!viewModel.uploadComplete)
+            }
+        }
         .onChange(of: viewModel.selectedItem) {
             _Concurrency.Task {
                 if let data = try? await viewModel.selectedItem?.loadTransferable(type: Data.self) {
@@ -136,5 +155,14 @@ struct PhotoUploadView: View {
                 }
             }
         }
+        .onChange(of: viewModel.uploadComplete) {
+            if viewModel.uploadComplete {
+                // Add a small delay before dismissing to show the success message
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    dismiss()
+                }
+            }
+        }
     }
+    
 }

@@ -8,6 +8,10 @@
 import SwiftUI
 import PhotosUI
 import FirebaseStorage
+import CoreImage
+import CoreGraphics
+import Accelerate
+import CoreImage.CIFilterBuiltins
 
 // View Model to handle image selection and upload
 @Observable
@@ -21,37 +25,147 @@ class PhotoUploadViewModel {
     var uploadError: Error? = nil
     var taskPath: String = ""
     
-    // Convert selected image to PNG data
-    func convertToPNGData() -> Data? {
+    // Compression configuration
+    private let targetFileSize: Int = 2000 * 1024  // Target 500KB
+    private let maxDimension: CGFloat = 2200      // Max dimension 1800px
+    private let compressionQuality: CGFloat = 0.9  // Initial compression quality
+    
+    // MARK: - Image Processing Methods
+    
+    private func compressImage(_ inputImage: UIImage) -> Data? {
+        // Step 1: Resize the image while maintaining aspect ratio
+        let resizedImage = resizeImage(inputImage)
+        
+        // Step 2: Compress the image with quality adjustment
+        return compressImageData(resizedImage)
+    }
+    
+    private func resizeImage(_ inputImage: UIImage) -> UIImage {
+        let sourceSize = inputImage.size
+        let maxDimension: CGFloat = 1800
+        
+        // Calculate scale factor to maintain aspect ratio
+        let scaleFactor = maxDimension / max(sourceSize.width, sourceSize.height)
+        
+        // Only resize if the image is larger than our target
+        guard scaleFactor < 1 else { return inputImage }
+        
+        let newWidth = sourceSize.width * scaleFactor
+        let newHeight = sourceSize.height * scaleFactor
+        let newSize = CGSize(width: newWidth, height: newHeight)
+        
+        guard let cgImage = inputImage.cgImage else { return inputImage }
+        
+        // Use the original image's colorspace and bitmap info
+        let originalColorSpace = cgImage.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = cgImage.bitmapInfo
+        
+        // Configure vImage format with original image properties
+        var format = vImage_CGImageFormat(
+            bitsPerComponent: Int(cgImage.bitsPerComponent),
+            bitsPerPixel: Int(cgImage.bitsPerPixel),
+            colorSpace: originalColorSpace,
+            bitmapInfo: bitmapInfo
+        )
+        
+        guard var sourceBuffer = try? vImage_Buffer(cgImage: cgImage),
+              var destinationBuffer = try? vImage_Buffer(width: Int(newWidth),
+                                                         height: Int(newHeight),
+                                                         bitsPerPixel: format!.bitsPerPixel) else {
+            return inputImage
+        }
+        
+        // High-quality resampling
+        let error = vImageScale_ARGB8888(&sourceBuffer,
+                                         &destinationBuffer,
+                                         nil,
+                                         vImage_Flags(kvImageHighQualityResampling))
+        
+        // Check for scaling errors
+        guard error == kvImageNoError else {
+            sourceBuffer.free()
+            destinationBuffer.free()
+            return inputImage
+        }
+        
+        // Create resized image
+        guard let resizedCGImage = try? destinationBuffer.createCGImage(format: format!) else {
+            sourceBuffer.free()
+            destinationBuffer.free()
+            return inputImage
+        }
+        
+        // Clean up
+        sourceBuffer.free()
+        destinationBuffer.free()
+        
+        // Preserve original image orientation and scale
+        let resizedImage = UIImage(cgImage: resizedCGImage,
+                                   scale: inputImage.scale,
+                                   orientation: inputImage.imageOrientation)
+        
+        return resizedImage
+    }
+    
+    private func compressImageData(_ image: UIImage) -> Data? {
+        var compression: CGFloat = compressionQuality
+        var data = image.jpegData(compressionQuality: compression)
+        
+        // Iteratively adjust compression until we're under target file size
+        while data?.count ?? 0 > targetFileSize && compression > 0.1 {
+            compression -= 0.1
+            data = image.jpegData(compressionQuality: compression)
+        }
+        
+        return data
+    }
+    
+    // MARK: - Firebase Methods
+    
+    func deletePhoto(filename: String = "progressPic.jpg") async throws {
+        let storageRef = Storage.storage().reference().child("\(taskPath)/\(filename)")
+        do {
+            try await storageRef.delete()
+            selectedItem = nil
+            selectedImageData = nil
+            uploadProgress = 0.0
+            uploadComplete = false
+        } catch {
+            do {
+                let fileNamepng = "progressPic.png"
+                let storageRefpng = Storage.storage().reference().child("\(taskPath)/\(fileNamepng)")
+                try await storageRefpng.delete()
+                selectedItem = nil
+                selectedImageData = nil
+                uploadProgress = 0.0
+                uploadComplete = false
+            } catch {
+                throw error
+            }
+        }
+    }
+    
+    // Convert selected image to compressed data
+    func convertToCompressedData() -> Data? {
         guard let selectedImageData = selectedImageData,
               let uiImage = UIImage(data: selectedImageData) else {
             return nil
         }
-        return uiImage.pngData()
+        return compressImage(uiImage)
     }
-    /// Retrieves an image from Firebase Storage and returns a SwiftUI Image
-    /// - Parameters:
-    ///   - taskPath: The path in Firebase Storage where the image is stored
-    ///   - filename: The name of the image file
-    /// - Returns: A SwiftUI Image
-    /// - Throws: `ImageRetrievalError` if the image cannot be retrieved or converted
-    func getPhoto(filename: String = "progressPic.png") async throws -> Image {
-        // Create reference to the specific image in Firebase Storage
+    
+    func getPhoto(filename: String = "progressPic.jpg") async throws -> Image {
         let storageRef = Storage.storage().reference().child("\(taskPath)/\(filename)")
         
         do {
-            // Attempt to download image data
             let imageData = try await storageRef.downloadData()
             
-            // Convert downloaded data to UIImage
             guard let uiImage = UIImage(data: imageData) else {
                 throw ImageRetrievalError.conversionFailed
             }
             
-            // Convert UIImage to SwiftUI Image
             return Image(uiImage: uiImage)
         } catch {
-            // Handle specific error scenarios
             switch error {
                 case ImageRetrievalError.imageNotFound:
                     print("No image found at the specified path")
@@ -62,33 +176,33 @@ class PhotoUploadViewModel {
                 default:
                     print("Unexpected error: \(error.localizedDescription)")
             }
-            
-            // Re-throw the error for the caller to handle
             throw error
         }
     }
-    // Upload image to Firebase Storage
+    
     func uploadImageToFirebase() {
-        // Ensure we have PNG data
-        guard let pngData = convertToPNGData() else {
+        guard let compressedData = convertToCompressedData() else {
             uploadError = NSError(domain: "PhotoUpload",
                                   code: 0,
-                                  userInfo: [NSLocalizedDescriptionKey: "Invalid image data"])
+                                  userInfo: [NSLocalizedDescriptionKey: "Failed to compress image"])
             return
         }
         
-        // Create a unique filename
-        let filename = "progressPic.png"
-        
-        // Reference to Firebase Storage
+        let filename = "progressPic.jpg"
         let storageRef = Storage.storage().reference().child("\(taskPath)/\(filename)")
         
-        // Upload task with progress tracking
-        let uploadTask = storageRef.putData(pngData, metadata: nil) { [weak self] metadata, error in
+        // Create metadata to store compression information
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        metadata.customMetadata = [
+            "originalWidth": "\(selectedImageData?.count ?? 0)",
+            "compressedWidth": "\(compressedData.count)"
+        ]
+        
+        let uploadTask = storageRef.putData(compressedData, metadata: metadata) { [weak self] metadata, error in
             guard let self = self else { return }
             
             if let error = error {
-                // Handle upload error
                 DispatchQueue.main.async {
                     self.uploadError = error
                     self.uploadComplete = false
@@ -96,14 +210,12 @@ class PhotoUploadViewModel {
                 return
             }
             
-            // Upload successful
             DispatchQueue.main.async {
                 self.uploadComplete = true
                 self.uploadProgress = 1.0
             }
         }
         
-        // Track upload progress
         uploadTask.observe(.progress) { [weak self] snapshot in
             guard let self = self else { return }
             let progress = Double(snapshot.progress?.completedUnitCount ?? 0) /
@@ -139,5 +251,20 @@ extension StorageReference {
                 continuation.resume(returning: data)
             }
         }
+    }
+}
+
+struct OptimizedImageView: View {
+    let image: Image
+    
+    var body: some View {
+        image
+            .resizable()
+            .scaledToFit()
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(.quaternary)
+            }
     }
 }

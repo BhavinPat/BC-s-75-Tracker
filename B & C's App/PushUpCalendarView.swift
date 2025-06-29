@@ -1,13 +1,14 @@
 //
-//  CalendarView.swift
+//  PushUpCalendarView.swift
 //  BC's 75 Tracker
 //
-//  Created by Bhavin Patel on 1/15/25.
+//  Created by Assistant on 6/28/25.
 //
 
 import SwiftUI
 
-struct CalendarView: View {
+
+struct PushUpCalendarView: View {
     //@State private var tasks: [String: Task] = [:]
     @Environment(FirebaseService.self) var firebase
     @Environment(AppManager.self) var appManager
@@ -17,21 +18,31 @@ struct CalendarView: View {
     @State private var datesGrouped: [String: [Date]] = [:]
     var userName: String
     
+    @State var presentPushUpTaskView = false
+    
+    @State private var showGoalPopover = false
+    @State private var newGoal = 0
+    @State private var goalAnchor: Anchor<CGRect>? = nil
+    
     func setDateRange() {
-        let startDate = firebase.users[userName]!.challenge75.Challenge1.startDate
-        let endDate = firebase.users[userName]!.challenge75.Challenge1.endDate
+        let keys = firebase.users[userName]!.pushUpTasks.keys
+        let sortedDates = keys.sorted(by: {
+            formattedString($0) < formattedString($1)
+        })
+        
+        let startDate = formattedString(sortedDates.first ?? nil)
+        let endDate = Date()
         dateRange = startDate...endDate
-        sortedDates()
+        sortDates()
     }
     
-    private func saveTask(date: String, _ task: Task) {
-        firebase.users[userName]?.challenge75.Challenge1.tasks[date] = task
-        firebase.updateTask(userName: userName, date: date, task: task)
-        //tasks[date] = task
+    private func saveTask(date: String, _ task: PushUpTask) {
+        firebase.users[userName]?.pushUpTasks[date] = task
+        firebase.updatePushUpTask(userName: userName, date: date, task: task)
     }
     
     
-    func sortedDates() {
+    func sortDates() {
         let calendar = Calendar.current
         
         // Extract all dates within the range
@@ -45,8 +56,14 @@ struct CalendarView: View {
         }
         for date in dates {
             let dateString = formattedDate(date)
-            if !(firebase.users[userName]!.challenge75.Challenge1.tasks.keys.contains(dateString)) {
-                saveTask(date: dateString, Task())
+            if !(firebase.users[userName]!.pushUpTasks.keys.contains(dateString)) {
+                // Determine previous day's goal, or default
+                let previousDay = calendar.date(byAdding: .day, value: -1, to: date)
+                let prevString = previousDay.map { formattedDate($0) } ?? ""
+                let prevGoal = firebase.users[userName]?.pushUpTasks[prevString]?.goal ?? 50
+                var newTask = PushUpTask()
+                newTask.goal = prevGoal
+                saveTask(date: dateString, newTask)
             }
         }
         // Group dates by month and year
@@ -72,6 +89,14 @@ struct CalendarView: View {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         return dateFormatter.string(from: date)
     }
+    func formattedString(_ string: String?) -> Date {
+        guard let string else {
+            return Date()
+        }
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        return dateFormatter.date(from: string) ?? Date()
+    }
     
     var body: some View {
         VStack {
@@ -83,11 +108,11 @@ struct CalendarView: View {
                                 ForEach(datesGrouped[sectionName, default: []], id: \.self) { date in
                                     Button {
                                         print(formattedDate(date))
-                                        appManager.path.append(.taskView(userName: userName, date: formattedDate(date)))
+                                        appManager.path.append(.pushUpTaskView(userName: userName, date: formattedDate(date)))
                                     } label: {
                                         VStack {
                                             RingDateView(
-                                                progress: firebase.users[userName]?.challenge75.Challenge1.tasks[formattedDate(date)]?.completionPercentage ?? 0.0, date: date)
+                                                progress: firebase.users[userName]?.pushUpTasks[formattedDate(date)]?.completionPercentage ?? 0.0, date: date)
                                             .padding(8)
                                             .frame(maxWidth: .infinity) // Ensures square-like aspect ratio within grid spacing
                                             .background(
@@ -115,10 +140,53 @@ struct CalendarView: View {
         }
         .onAppear {
             loadTasks()
+            let todayString = formattedDate(Date())
+            newGoal = firebase.users[userName]?.pushUpTasks[todayString]?.goal ?? 50
         }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    let todayString = formattedDate(Date())
+                    newGoal = firebase.users[userName]?.pushUpTasks[todayString]?.goal ?? 0
+                    showGoalPopover = true
+                } label: {
+                    Text("Change Goal")
+                }
+                .popover(isPresented: $showGoalPopover) {
+                    VStack {
+                        Text("Set a New Goal")
+                            .font(.headline)
+                        Stepper(value: $newGoal, in: 0...1000, step: 1) {
+                            Text("Goal: \(newGoal)")
+                        }
+                        Button("Save") {
+                            let todayString = formattedDate(Date())
+                            if let existingTask = firebase.users[userName]?.pushUpTasks[todayString] {
+                                var updatedTask = existingTask
+                                updatedTask.goal = newGoal
+                                saveTask(date: todayString, updatedTask)
+                            } else {
+                                var newTask = PushUpTask()
+                                newTask.goal = newGoal
+                                saveTask(date: todayString, newTask)
+                            }
+                            showGoalPopover = false
+                        }
+                        .padding(.top)
+                    }
+                    .padding()
+                    .frame(width: 220, height: 100)
+                }
+            }
+        }
+        /*
+        .sheet(isPresented: $presentPushUpTaskView) {
+            PushUpTaskView(userName: <#T##String#>, date: <#T##String#>)
+        }
+         */
         .navigationTitle(userName)
     }
-
+    
     private func scrollToToday(proxy: ScrollViewProxy) {
         let today = Date()
         // Flatten all dates into a single array
@@ -142,3 +210,4 @@ struct CalendarView: View {
     }
     
 }
+

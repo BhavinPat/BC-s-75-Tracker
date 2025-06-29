@@ -1,10 +1,3 @@
-//
-//  SidebarView.swift
-//  BC's 75 Tracker
-//
-//  Created by Bhavin Patel on 1/15/25.
-//
-
 import SwiftUI
 import Network
 struct SidebarView: View {
@@ -69,6 +62,17 @@ struct SidebarView: View {
                                     iconName: "figure.strengthtraining.traditional"
                                 )
                             }
+                            Button {
+                                // Push-Up Challenge for this user
+                                // Use the first available challenge name if present, or a default (e.g., "Main")
+                               // let challengeName = firebase.users[user]?.PushUpChallenges.keys.first ?? "Main"
+                                appManager.path.append(.pushUpCalendar(userName: user))
+                            } label: {
+                                ListRowView(
+                                    title: "Push-Up Challenge",
+                                    iconName: "figure.strengthtraining.functional"
+                                )
+                            }
                         }
                     }
                 }
@@ -95,7 +99,7 @@ struct SidebarView: View {
                 firebase.load()
             }
         }
-        .navigationTitle("BC's Tracker!")
+        .navigationTitle("B & C's App!")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -141,6 +145,8 @@ enum BCNavigation: Hashable {
     case signin
     case chooseUser
     case poopTracker
+    case pushUpCalendar(userName: String)
+    case pushUpTaskView(userName: String, date: String)
 }
 
 
@@ -172,3 +178,5 @@ struct ListRowView: View {
         )
     }
 }
+
+

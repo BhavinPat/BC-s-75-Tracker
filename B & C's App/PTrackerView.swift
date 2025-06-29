@@ -36,12 +36,10 @@ struct PTrackerView: View {
             String(entry.0.split(separator: "-")[1])
         }
     }
-    
+    let months = ["january", "february", "march", "april", "may", "june",
+                  "july", "august", "september", "october", "november", "december"]
     
     private func addNextMonth() {
-        let months = ["january", "february", "march", "april", "may", "june",
-                      "july", "august", "september", "october", "november", "december"]
-        
         // If no months exist, start with January 2025
         if firebase.pTracker.isEmpty {
             let key = "january-2025"
@@ -101,6 +99,17 @@ struct PTrackerView: View {
                         )
                     }
                 }
+            }
+        }
+        .onAppear {
+            let now = Date()
+            let calendar = Calendar.current
+            let monthIndex = calendar.component(.month, from: now) - 1
+            let year = calendar.component(.year, from: now)
+            let currentKey = "\(months[monthIndex])-\(year)"
+            if firebase.pTracker[currentKey] == nil {
+                firebase.pTracker[currentKey] = PMonth(bhavin: 0, chloe: 0)
+                firebase.updatePoops(key: currentKey, value: PMonth(bhavin: 0, chloe: 0))
             }
         }
         .navigationTitle("💩 Tracker")

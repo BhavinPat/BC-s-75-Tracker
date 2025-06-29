@@ -76,6 +76,10 @@ struct AuthLandingView: View {
                             .navigationBarBackButtonHidden()
                     case .poopTracker:
                         PTrackerView()
+                    case .pushUpCalendar(let userName):
+                        PushUpCalendarView(userName: userName)
+                    case .pushUpTaskView(let userName, let date):
+                        PushUpTaskView(userName: userName, date: date)
                 }
             }
         }
@@ -83,3 +87,4 @@ struct AuthLandingView: View {
         .environment(appManager)
     }
 }
+

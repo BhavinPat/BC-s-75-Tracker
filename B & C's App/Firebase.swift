@@ -22,6 +22,7 @@ class FirebaseService {
      }
      */
     
+    /// Fetch all poop tracking data from Firebase Realtime Database.
     private func fetchPoops() {
         let listener = db.child("pTracker").observe(.value, with: { [self]
             snapshot in
@@ -34,8 +35,9 @@ class FirebaseService {
             }
         })
     }
+    
+    /// Fetch all users from Firebase Realtime Database.
     private func fetchUsers() {
-        
         let listener = db.child("users").observe(.value, with: { [self]
             snapshot in
             guard let data = snapshot.value as? [String: Any] else {
@@ -48,18 +50,23 @@ class FirebaseService {
                     throw BCError.failedToDecode1
                 }
                 // Create a JSONDecoder with a custom date decoding strategy
-                let decoder = JSONDecoder()
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                decoder.dateDecodingStrategy = .formatted(dateFormatter)
-                return try? decoder.decode(User.self, from: jsonData)
+                do {
+                    let decoder = JSONDecoder()
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd"
+                    decoder.dateDecodingStrategy = .formatted(dateFormatter)
+                    return try decoder.decode(User.self, from: jsonData)
+                } catch {
+                    throw BCError.failedToDecode2
+                }
             }
-            print(users)
             print("fetched Users!!")
             users = fetchedUsers
+            print(users)
         })
     }
     
+    /// Load all necessary data (users and poop tracking).
     func load() {
         _Concurrency.Task {
             fetchUsers()
@@ -69,23 +76,32 @@ class FirebaseService {
         }
     }
     
+    /// Update poop tracking data for a given key.
     func updatePoops(key: String, value: PMonth) {
         let data = try? JSONEncoder().encode(value)
         guard let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) else { return }
         db.child("pTracker/\(key)").setValue(json)
     }
 
-    
+    /// Update a task for a user on a specific date under the Challenge75 Challenge1.
     func updateTask(userName: String, date: String, task: Task) {
         let taskData = try? JSONEncoder().encode(task)
         guard let json = taskData.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) else { return }
         db.child("users/\(userName)/Challenge75/Challenge1/tasks/\(date)").setValue(json)
     }
     
+    /// Update or create a PushUpTask for the specified user and date.
+    func updatePushUpTask(userName: String, date: String, task: PushUpTask) {
+        let taskData = try? JSONEncoder().encode(task)
+        guard let json = taskData.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) else { return }
+        db.child("users/\(userName)/PushUpTasks/\(date)").setValue(json)
+    }
     
     var errorMessage: String?
     
-    // Sign in with email and password
+    // MARK: - Authentication
+    
+    /// Sign in with email and password.
     func signIn(email: String, password: String) {
         Auth.auth().signIn(withEmail: email, password: password) { [weak self] result, error in
             DispatchQueue.main.async {
@@ -99,6 +115,7 @@ class FirebaseService {
         }
     }
     
+    /// Create a new account with email and password.
     func createAccount(email: String, password: String, completion: @escaping (Bool, Error?) -> Void) {
         Auth.auth().createUser(withEmail: email, password: password) { authResult, error in
             if let error = error {
@@ -111,7 +128,7 @@ class FirebaseService {
         }
     }
     
-    // Reset password
+    /// Reset password for a given email address.
     func resetPassword(for email: String) {
         guard !email.isEmpty else {
             self.errorMessage = "Please enter your email address."
@@ -136,7 +153,7 @@ class FirebaseService {
         self.listenToAuthState()
     }
     
-    /// Listen to Firebase Auth State Changes
+    /// Listen to Firebase Auth State Changes.
     private func listenToAuthState() {
         let _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             DispatchQueue.main.async {
@@ -151,12 +168,12 @@ class FirebaseService {
         }
     }
     
-    /// Check if the user is logged in
+    /// Check if the user is logged in.
     func checkLoginStatus() -> Bool {
         return isLoggedIn
     }
     
-    /// Log out the user
+    /// Log out the user.
     func logout() throws {
         do {
             try Auth.auth().signOut()
@@ -164,9 +181,7 @@ class FirebaseService {
             throw error
         }
     }
-
 }
-
 
 enum BCError: Error {
     case failedToDecode1

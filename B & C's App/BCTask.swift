@@ -6,18 +6,30 @@
 //
 import Foundation
 
-
 struct Root: Codable {
     var users: [String: User]
 }
 
 struct User: Codable {
-    var Challenge75: Challenge75
-    //var PushUpChallenge: [PushUpChallenge]
+    var challenge75: Challenge75
+    // Flat dictionary of push-up tasks keyed by date string
+    var pushUpTasks: [String: PushUpTask] = [:]
     
     enum CodingKeys: String, CodingKey {
-        case Challenge75 = "Challenge75"
-        //case PushUpChallenge = "PushUpChallenge"
+        case challenge75 = "Challenge75"
+        case pushUpTasks = "PushUpTasks"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        challenge75 = try container.decode(Challenge75.self, forKey: .challenge75)
+        pushUpTasks = (try? container.decode([String: PushUpTask].self, forKey: .pushUpTasks)) ?? [:]
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(challenge75, forKey: .challenge75)
+        try container.encode(pushUpTasks, forKey: .pushUpTasks)
     }
 }
 
@@ -80,3 +92,5 @@ struct Task: Codable, Equatable {
         foodDescription = ""
     }
 }
+
+// Assuming PushUpTask is defined somewhere else in the codebase

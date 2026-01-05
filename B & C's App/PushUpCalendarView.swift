@@ -44,37 +44,46 @@ struct PushUpCalendarView: View {
     
     func sortDates() {
         let calendar = Calendar.current
-        
-        // Extract all dates within the range
-        var dates: [Date] = []
-        var currentDate = dateRange.lowerBound
-        
-        while currentDate <= dateRange.upperBound {
-            dates.append(currentDate)
-            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
-            currentDate = nextDay
-        }
-        for date in dates {
-            let dateString = formattedDate(date)
-            if !(firebase.users[userName]!.pushUpTasks.keys.contains(dateString)) {
-                // Determine previous day's goal, or default
-                let previousDay = calendar.date(byAdding: .day, value: -1, to: date)
+        let today = dateRange.upperBound
+        let todayString = formattedDate(today)
+
+        // Only ensure today's task exists; do not backfill missing days
+        if !(firebase.users[userName]?.pushUpTasks.keys.contains(todayString) ?? false) {
+            // Determine previous day's goal, or default
+            var recentGoal = -1
+            var daysIteratedThrough: Int = 0
+            var lastDayChecked = today
+            repeat {
+                let previousDay = calendar.date(byAdding: .day, value: -1, to: lastDayChecked)
                 let prevString = previousDay.map { formattedDate($0) } ?? ""
-                let prevGoal = firebase.users[userName]?.pushUpTasks[prevString]?.goal ?? 50
-                var newTask = PushUpTask()
-                newTask.goal = prevGoal
-                saveTask(date: dateString, newTask)
-            }
+                if let prevGoal = firebase.users[userName]?.pushUpTasks[prevString]?.goal {
+                    recentGoal = prevGoal
+                }
+                daysIteratedThrough += 1
+                lastDayChecked = previousDay ?? Date()
+            } while daysIteratedThrough < 100 && recentGoal == -1
+
+            var newTask = PushUpTask()
+            newTask.goal = recentGoal
+            saveTask(date: todayString, newTask)
         }
-        // Group dates by month and year
-        let grouped = Dictionary(grouping: dates) { date -> String in
-            let components = calendar.dateComponents([.year, .month], from: date)
-            return "\(components.year!)-\(components.month!)"
+
+        // Build a date array only from existing task keys (so we don't invent dates)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let existingDates: [Date] = (firebase.users[userName]?.pushUpTasks.keys.compactMap { dateFormatter.date(from: $0) } ?? [])
+
+        // Group dates by month (yyyy-MM) and sort days within each month
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "yyyy-MM"
+        var grouped = Dictionary(grouping: existingDates) { date -> String in
+            monthFormatter.string(from: date)
+        }
+        // Sort dates within each month descending
+        for (key, values) in grouped {
+            grouped[key] = values.sorted(by: >)
         }
         self.datesGrouped = grouped
-        // Convert dictionary values to [[Date]], sorted by year and month
-        //self.dates = grouped.sorted { $0.key < $1.key }.map { $0.value }
-        
     }
     
     private let columns = [
@@ -102,7 +111,11 @@ struct PushUpCalendarView: View {
         VStack {
             ScrollViewReader { proxy in
                 List {
-                    ForEach(Array(datesGrouped.keys).sorted(), id: \.self) { sectionName in
+                    ForEach(Array(datesGrouped.keys).sorted(by: { lhs, rhs in
+                        let df = DateFormatter()
+                        df.dateFormat = "yyyy-MM"
+                        return (df.date(from: lhs) ?? .distantPast) > (df.date(from: rhs) ?? .distantPast)
+                    }), id: \.self) { sectionName in
                         Section(header: Text("\(formattedDateSection(sectionName))").font(.headline)) {
                             LazyVGrid(columns: columns, spacing: 16) {
                                 ForEach(datesGrouped[sectionName, default: []], id: \.self) { date in
@@ -142,6 +155,7 @@ struct PushUpCalendarView: View {
             loadTasks()
             let todayString = formattedDate(Date())
             newGoal = firebase.users[userName]?.pushUpTasks[todayString]?.goal ?? 50
+            sortDates()
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -188,9 +202,13 @@ struct PushUpCalendarView: View {
     }
     
     private func scrollToToday(proxy: ScrollViewProxy) {
-        let today = Date()
+        let today = Calendar.current.startOfDay(for: Date())
         // Flatten all dates into a single array
         let allDates = datesGrouped.flatMap { $0.value }
+        if let exactToday = allDates.first(where: { Calendar.current.isDate($0, inSameDayAs: today) }) {
+            proxy.scrollTo(exactToday, anchor: .top)
+            return
+        }
         // Find the closest date to today
         if let closestDate = allDates.min(by: { abs($0.timeIntervalSince(today)) < abs($1.timeIntervalSince(today)) }) {
             proxy.scrollTo(closestDate, anchor: .top)

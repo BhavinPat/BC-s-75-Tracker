@@ -140,7 +140,8 @@ class AppManager {
 
 enum BCNavigation: Hashable {
     case calender(userName: String)
-    case taskView(userName: String, date: String)
+    case challengeCalendar(userName: String, challengeID: String)
+    case taskView(userName: String, date: String, challengeID: String)
     case createAccount
     case signin
     case chooseUser
@@ -178,5 +179,4 @@ struct ListRowView: View {
         )
     }
 }
-
 

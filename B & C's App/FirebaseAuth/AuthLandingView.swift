@@ -64,9 +64,11 @@ struct AuthLandingView: View {
                 value in
                 switch value {
                     case .calender(let userName):
-                        CalendarView(userName: userName)
-                    case .taskView(let userName, let date):
-                        TaskView(userName: userName, date: date)
+                        ChallengeListView(userName: userName)
+                    case .challengeCalendar(let userName, let challengeID):
+                        CalendarView(userName: userName, challengeID: challengeID)
+                    case .taskView(let userName, let date, let challengeID):
+                        TaskView(userName: userName, date: date, challengeID: challengeID)
                     case .createAccount:
                         CreateAccountView()
                     case .signin:
@@ -87,4 +89,3 @@ struct AuthLandingView: View {
         .environment(appManager)
     }
 }
-

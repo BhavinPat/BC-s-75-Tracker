@@ -10,6 +10,8 @@ import SwiftUI
 
 struct PTrackerView: View {
     @Environment(FirebaseService.self) var firebase
+    @State private var lockAlertMessage: String = ""
+    @State private var showLockAlert: Bool = false
     
     private var sortedMonths: [(String, PMonth)] {
         let months = ["january", "february", "march", "april", "may", "june",
@@ -38,6 +40,39 @@ struct PTrackerView: View {
     }
     let months = ["january", "february", "march", "april", "may", "june",
                   "july", "august", "september", "october", "november", "december"]
+    
+    private var currentMonthKey: String {
+        let now = Date()
+        let calendar = Calendar.current
+        let monthIndex = calendar.component(.month, from: now) - 1
+        let year = calendar.component(.year, from: now)
+        return "\(months[monthIndex])-\(year)"
+    }
+    
+    private func canEdit(monthKey: String) -> Bool {
+        monthKey.lowercased() == currentMonthKey
+    }
+    
+    private func funnyLockedMessage(for monthKey: String) -> String {
+        "Hands off \(formatMonth(monthKey))! Time travel is disabled, and past poops are officially archived."
+    }
+    
+    private func updatePoopCount(monthKey: String, person: String, value: Int) {
+        guard canEdit(monthKey: monthKey) else {
+            lockAlertMessage = funnyLockedMessage(for: monthKey)
+            showLockAlert = true
+            return
+        }
+        
+        var updatedMonth = firebase.pTracker[monthKey] ?? PMonth(bhavin: 0, chloe: 0)
+        if person == "Bhavin" {
+            updatedMonth.bhavin = value
+        } else {
+            updatedMonth.chloe = value
+        }
+        firebase.pTracker[monthKey] = updatedMonth
+        firebase.updatePoops(key: monthKey, value: updatedMonth)
+    }
     
     private func addNextMonth() {
         // If no months exist, start with January 2025
@@ -79,21 +114,13 @@ struct PTrackerView: View {
                             bhavinCount: Binding(
                                 get: { firebase.pTracker["\(month.0)"]?.bhavin ?? 0 },
                                 set: { newValue in
-                                    let key = "\(month.0)"
-                                    var updatedMonth = firebase.pTracker[key] ?? PMonth(bhavin: 0, chloe: 0)
-                                    updatedMonth.bhavin = newValue
-                                    firebase.pTracker[key] = updatedMonth
-                                    firebase.updatePoops(key: key, value: updatedMonth)
+                                    updatePoopCount(monthKey: month.0, person: "Bhavin", value: newValue)
                                 }
                             ),
                             chloeCount: Binding(
                                 get: { firebase.pTracker["\(month.0)"]?.chloe ?? 0 },
                                 set: { newValue in
-                                    let key = "\(month.0)"
-                                    var updatedMonth = firebase.pTracker[key] ?? PMonth(bhavin: 0, chloe: 0)
-                                    updatedMonth.chloe = newValue
-                                    firebase.pTracker[key] = updatedMonth
-                                    firebase.updatePoops(key: key, value: updatedMonth)
+                                    updatePoopCount(monthKey: month.0, person: "Chloe", value: newValue)
                                 }
                             )
                         )
@@ -113,6 +140,11 @@ struct PTrackerView: View {
             }
         }
         .navigationTitle("💩 Tracker")
+        .alert("Nice Try 😄", isPresented: $showLockAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(lockAlertMessage)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: addNextMonth) {
@@ -120,6 +152,12 @@ struct PTrackerView: View {
                 }
             }
         }
+    }
+    
+    private func formatMonth(_ monthKey: String) -> String {
+        let components = monthKey.split(separator: "-")
+        guard components.count == 2 else { return monthKey }
+        return "\(components[0].capitalized) \(components[1])"
     }
 }
 

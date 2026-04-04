@@ -8,30 +8,57 @@
 import SwiftUI
 
 struct CalendarView: View {
-    //@State private var tasks: [String: Task] = [:]
     @Environment(FirebaseService.self) var firebase
     @Environment(AppManager.self) var appManager
-    //@State private var presentSheet = false
     @State private var dateRange: ClosedRange<Date> = Date()...Date()
-    //@State private var dates: [[Date]] = []
     @State private var datesGrouped: [String: [Date]] = [:]
+    @State private var presentEndChallengeAlert: Bool = false
+    @State private var challengeAlertMessage: String = ""
+    @State private var presentChallengeAlert: Bool = false
     var userName: String
+    var challengeID: String
+    
+    private var selectedChallenge: Challenge1? {
+        firebase.challenge(for: userName, challengeID: challengeID)
+    }
+    
+    private var isEditable: Bool {
+        selectedChallenge?.isActive == true
+    }
+    
+    private func endChallenge() {
+        if let errorMessage = firebase.endChallenge(userName: userName, challengeID: challengeID) {
+            challengeAlertMessage = errorMessage
+            presentChallengeAlert = true
+            return
+        }
+        loadTasks()
+    }
     
     func setDateRange() {
-        let startDate = firebase.users[userName]!.challenge75.Challenge1.startDate
-        let endDate = firebase.users[userName]!.challenge75.Challenge1.endDate
+        guard let challenge = selectedChallenge else {
+            datesGrouped = [:]
+            dateRange = Date()...Date()
+            return
+        }
+        let startDate = challenge.startDate
+        let endDate = challenge.endDate
         dateRange = startDate...endDate
         sortedDates()
     }
     
     private func saveTask(date: String, _ task: Task) {
-        firebase.users[userName]?.challenge75.Challenge1.tasks[date] = task
-        firebase.updateTask(userName: userName, date: date, task: task)
-        //tasks[date] = task
+        guard isEditable else { return }
+        firebase.updateTask(userName: userName, challengeID: challengeID, date: date, task: task)
     }
     
     
     func sortedDates() {
+        guard selectedChallenge != nil else {
+            datesGrouped = [:]
+            return
+        }
+        
         let calendar = Calendar.current
         
         // Extract all dates within the range
@@ -45,19 +72,17 @@ struct CalendarView: View {
         }
         for date in dates {
             let dateString = formattedDate(date)
-            if !(firebase.users[userName]!.challenge75.Challenge1.tasks.keys.contains(dateString)) {
+            let hasTask = selectedChallenge?.tasks.keys.contains(dateString) ?? false
+            if isEditable && !hasTask {
                 saveTask(date: dateString, Task())
             }
         }
         // Group dates by month and year
         let grouped = Dictionary(grouping: dates) { date -> String in
             let components = calendar.dateComponents([.year, .month], from: date)
-            return "\(components.year!)-\(components.month!)"
+            return String(format: "%04d-%02d", components.year ?? 0, components.month ?? 1)
         }
         self.datesGrouped = grouped
-        // Convert dictionary values to [[Date]], sorted by year and month
-        //self.dates = grouped.sorted { $0.key < $1.key }.map { $0.value }
-        
     }
     
     private let columns = [
@@ -74,49 +99,96 @@ struct CalendarView: View {
     }
     
     var body: some View {
-        VStack {
-            ScrollViewReader { proxy in
-                List {
-                    ForEach(Array(datesGrouped.keys).sorted(), id: \.self) { sectionName in
-                        Section(header: Text("\(formattedDateSection(sectionName))").font(.headline)) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(datesGrouped[sectionName, default: []], id: \.self) { date in
-                                    Button {
-                                        print(formattedDate(date))
-                                        appManager.path.append(.taskView(userName: userName, date: formattedDate(date)))
-                                    } label: {
-                                        VStack {
-                                            RingDateView(
-                                                progress: firebase.users[userName]?.challenge75.Challenge1.tasks[formattedDate(date)]?.completionPercentage ?? 0.0, date: date)
-                                            .padding(8)
-                                            .frame(maxWidth: .infinity) // Ensures square-like aspect ratio within grid spacing
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .fill(Color.secondary.opacity(0.2)) // Use your desired color
-                                                //.shadow(color: .gray.opacity(0.2), radius: 4, x: 0, y: 2)
-                                            )
-                                        }
-                                    }
-                                    .id(date)
-                                    .buttonStyle(.plain)
-                                    
-                                }
+        Group {
+            if selectedChallenge != nil {
+                ScrollViewReader { proxy in
+                    List {
+                        Section {
+                            HStack {
+                                Text(challengeID)
+                                    .font(.headline)
+                                Spacer()
+                                Text(isEditable ? "Active" : "Archived")
+                                    .foregroundStyle(isEditable ? .green : .secondary)
+                                    .font(.subheadline.weight(.semibold))
                             }
-                            .padding(.vertical)
+                        }
+                        
+                        ForEach(Array(datesGrouped.keys).sorted(), id: \.self) { sectionName in
+                            Section(header: Text("\(formattedDateSection(sectionName))").font(.headline)) {
+                                LazyVGrid(columns: columns, spacing: 16) {
+                                    ForEach(datesGrouped[sectionName, default: []], id: \.self) { date in
+                                        Button {
+                                            print(formattedDate(date))
+                                            appManager.path.append(.taskView(userName: userName, date: formattedDate(date), challengeID: challengeID))
+                                        } label: {
+                                            VStack {
+                                                RingDateView(
+                                                    progress: selectedChallenge?.tasks[formattedDate(date)]?.completionPercentage ?? 0.0,
+                                                    date: date
+                                                )
+                                                .padding(8)
+                                                .frame(maxWidth: .infinity) // Ensures square-like aspect ratio within grid spacing
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .fill(Color.secondary.opacity(0.2)) // Use your desired color
+                                                )
+                                            }
+                                        }
+                                        .id(date)
+                                        .buttonStyle(.plain)
+                                        
+                                    }
+                                }
+                                .padding(.vertical)
+                            }
                         }
                     }
+                    .listStyle(.plain)
+                    .background(.clear)
+                    .onAppear {
+                        scrollToToday(proxy: proxy)
+                    }
                 }
-                .listStyle(.plain)
-                .background(.clear)
-                .onAppear {
-                    scrollToToday(proxy: proxy)
-                }
+            } else {
+                ContentUnavailableView(
+                    "Challenge Not Found",
+                    systemImage: "exclamationmark.circle",
+                    description: Text("This challenge may have been removed or not synced yet.")
+                )
             }
         }
         .onAppear {
             loadTasks()
         }
+        .onChange(of: firebase.challenge(for: userName, challengeID: challengeID)?.isActive ?? false, initial: false) {
+            loadTasks()
+        }
         .navigationTitle(userName)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if isEditable {
+                    Button(role: .destructive) {
+                        presentEndChallengeAlert = true
+                    } label: {
+                        Text("End")
+                    }
+                }
+            }
+        }
+        .alert("End Challenge?", isPresented: $presentEndChallengeAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("End", role: .destructive) {
+                endChallenge()
+            }
+        } message: {
+            Text("This challenge will move to history and become view-only.")
+        }
+        .alert("75 Challenge", isPresented: $presentChallengeAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(challengeAlertMessage)
+        }
     }
 
     private func scrollToToday(proxy: ScrollViewProxy) {
@@ -132,7 +204,7 @@ struct CalendarView: View {
     func formattedDateSection(_ date1: String) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM"
-        let date = dateFormatter.date(from: date1)!
+        guard let date = dateFormatter.date(from: date1) else { return date1 }
         dateFormatter.dateFormat = "MMM yyyy"
         return dateFormatter.string(from: date)
     }

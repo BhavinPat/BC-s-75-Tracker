@@ -23,6 +23,7 @@ struct TaskView: View {
     
     @State private var photoModel: PhotoUploadViewModel = PhotoUploadViewModel()
     @State private var presentPhotoPicker: Bool = false
+    @State private var didInitialLoad: Bool = false
     
     @Environment(\.colorScheme) var colorScheme
     
@@ -31,12 +32,24 @@ struct TaskView: View {
     
     var userName: String
     var date: String
+    var challengeID: String
+    
+    private var isEditable: Bool {
+        firebase.isChallengeActive(userName: userName, challengeID: challengeID)
+    }
     
     //@Binding var tasks: [String: Task]
     
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                if !isEditable {
+                    Label("This challenge is archived. You can view it, but editing is disabled.", systemImage: "lock.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal)
+                }
+                
                 // Water Intake Section
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
@@ -202,6 +215,7 @@ struct TaskView: View {
                 }
             }
             .padding()
+            .disabled(!isEditable)
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationBarTitleDisplayMode(.large)
@@ -210,48 +224,42 @@ struct TaskView: View {
         .scrollIndicators(.hidden)
         .navigationTitle(formattedDateTask(date))
         .onChange(of: water) {
-            firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.water = water
+            guard isEditable, didInitialLoad else { return }
             saveTask()
-            //onUpdate(firebase.currentTask)
         }
         .onChange(of: workout) {
-            firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.workout = workout
+            guard isEditable, didInitialLoad else { return }
             saveTask()
-            //onUpdate(firebase.currentTask)
         }
         .onChange(of: reading) {
-            firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.reading = reading
+            guard isEditable, didInitialLoad else { return }
             saveTask()
-            //onUpdate(firebase.currentTask)
         }
         .onChange(of: progressPic) {
-            if firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.progressPic != progressPic {
-                firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.progressPic = progressPic
+            guard isEditable, didInitialLoad else { return }
+            if (firebase.challenge(for: userName, challengeID: challengeID)?.tasks[date]?.progressPic ?? false) != progressPic {
                 saveTask()
             }
-            // onUpdate(firebase.currentTask)
         }
         .onChange(of: food) {
-            firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.food = food
+            guard isEditable, didInitialLoad else { return }
             saveTask()
-            //onUpdate(firebase.currentTask)
         }
         .onChange(of: isTextEditorFocused) {
-            firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.workoutDescription = workoutDescription
-            firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.foodDescription = foodDescription
+            guard isEditable, didInitialLoad, !isTextEditorFocused else { return }
             saveTask()
         }
         .onChange(of: photoModel.uploadComplete) {
-            
+            guard isEditable else { return }
             if photoModel.uploadComplete, let data = photoModel.selectedImageData {
                 progressPicImage = Image(uiImage: UIImage(data: data)!)
                 progressPic = true
             }
-            
         }
         .onAppear {
+            didInitialLoad = false
             
-            photoModel.taskPath = "users/\(userName)/Challenge75/Challenge1/tasks/\(date)"
+            photoModel.taskPath = "users/\(userName)/Challenge75/\(challengeID)/tasks/\(date)"
             _Concurrency.Task { @MainActor in
                 do {
                     progressPicImage = try await photoModel.getPhoto()
@@ -265,12 +273,15 @@ struct TaskView: View {
                 }
                 progressPic = progressPicImage != nil
             }
-            water = firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.water ?? 0.0
-            foodDescription = firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.foodDescription ?? ""
-            workoutDescription = firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.workoutDescription ?? ""
-            workout = firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.workout ?? false
-            reading = firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.reading ?? false
-            food = firebase.users[userName]?.challenge75.Challenge1.tasks[date]?.food ?? false
+            let existingTask = firebase.challenge(for: userName, challengeID: challengeID)?.tasks[date]
+            water = existingTask?.water ?? 0.0
+            foodDescription = existingTask?.foodDescription ?? ""
+            workoutDescription = existingTask?.workoutDescription ?? ""
+            workout = existingTask?.workout ?? false
+            reading = existingTask?.reading ?? false
+            food = existingTask?.food ?? false
+            progressPic = existingTask?.progressPic ?? false
+            didInitialLoad = true
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -291,15 +302,22 @@ struct TaskView: View {
     func formattedDateTask(_ date1: String) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        let date = dateFormatter.date(from: date1)!
+        guard let date = dateFormatter.date(from: date1) else { return date1 }
         dateFormatter.dateStyle = .medium
         return dateFormatter.string(from: date)
     }
     
     private func saveTask() {
-        //firebase.users[userName]?.tasks[date] = task
-        firebase.updateTask(userName: userName, date: date, task: (firebase.users[userName]?.challenge75.Challenge1.tasks[date])!)
-        //tasks[date] = task
+        guard isEditable else { return }
+        var task = Task()
+        task.water = water
+        task.workout = workout
+        task.reading = reading
+        task.progressPic = progressPic
+        task.food = food
+        task.workoutDescription = workoutDescription
+        task.foodDescription = foodDescription
+        firebase.updateTask(userName: userName, challengeID: challengeID, date: date, task: task)
     }
     
     func formatedDate(_ date: Date) -> String {
